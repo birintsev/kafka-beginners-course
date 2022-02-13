@@ -1,6 +1,7 @@
 package birintsev.kafka.tutorial3;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
+import com.google.gson.JsonParser;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -40,14 +41,29 @@ public class ElasticSearchConsumer {
             for (ConsumerRecord<String, String> record : records) {
                 // where we insert data into ElasticSearch
 
-                IndexRequest indexRequest = new IndexRequest("twitter", "tweets")
-                    .source(new ObjectMapper().writeValueAsString(new Object() {
-                        public String data = record.value();
-                    }), XContentType.JSON);
+                // 2 strategies
+
+                // kafka generic ID
+                // String id = record.topic() + "_" + record.partition() + "_" + record.offset();
+
+                // twitter specific id
+                String id;
+                try {
+                    id = extractIdFromTweet(record.value());
+                } catch (Exception e) { // for dummy generated tweets
+                    LOGGER.error(
+                        "An error occurred while parsing a tweet from the twitter_tweets topic.", e
+                    );
+                    id = "dummy_tweet_dummy_generated_id_" + record.value().hashCode();
+                }
+
+                IndexRequest indexRequest = new IndexRequest(
+                    "twitter",
+                    "tweets",
+                    id // to make consumer idempotent
+                ).source(toJson(record.value()), XContentType.JSON);
 
                 IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
-                String id = indexResponse.getId();
-                LOGGER.info(id);
                 try {
                     Thread.sleep(1000); // introduce a small delay
                 } catch (InterruptedException e) {
@@ -97,5 +113,26 @@ public class ElasticSearchConsumer {
 
         RestHighLevelClient client = new RestHighLevelClient(builder);
         return client;
+    }
+
+    private static JsonParser JSON_PARSER = new JsonParser();
+
+    private static Gson GSON = new Gson();
+
+    private static String extractIdFromTweet(String tweetJson) {
+        return JSON_PARSER.parse(tweetJson).getAsJsonObject().get("id_str").getAsString();
+    }
+
+    private static String toJson(String value) {
+        return GSON.toJson(new JsonPojo(value));
+    }
+
+    private static class JsonPojo {
+
+        public final String data;
+
+        public JsonPojo(String data) {
+            this.data = data;
+        }
     }
 }
