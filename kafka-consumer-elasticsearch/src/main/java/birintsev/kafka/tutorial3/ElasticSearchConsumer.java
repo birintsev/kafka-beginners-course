@@ -31,6 +31,10 @@ public class ElasticSearchConsumer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ElasticSearchConsumer.class);
 
+    private static final JsonParser JSON_PARSER = new JsonParser();
+
+    private static final Gson GSON = new Gson();
+
     public static void main(String[] args) throws IOException {
         RestHighLevelClient client = createClient();
 
@@ -127,10 +131,6 @@ public class ElasticSearchConsumer {
         RestHighLevelClient client = new RestHighLevelClient(builder);
         return client;
     }
-
-    private static JsonParser JSON_PARSER = new JsonParser();
-
-    private static Gson GSON = new Gson();
 
     private static String extractIdFromTweet(String tweetJson) {
         return JSON_PARSER.parse(tweetJson).getAsJsonObject().get("id_str").getAsString();
